@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CustomTshirt73 | Design Your Own Custom Shirt</title>
+<meta name="description" content="Design custom t-shirts and hoodies online. Upload art, add your name or text, preview it live, and we print and ship.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Anton&family=Bebas+Neue&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@700&family=Oswald:wght@600&family=Lobster&family=Graduate&family=Bungee&family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<header class="nav">
+  <a class="brand" href="#top"><span class="logo">73</span>CustomTshirt73</a>
+  <nav><a href="#design">Design</a><a href="#how">How it works</a><a href="#faq">FAQ</a><a href="#contact">Contact</a></nav>
+  <button class="cart-btn" id="cartOpen">Cart <span id="cartCount">0</span></button>
+</header>
+
+<section class="hero" id="top">
+  <div><h1>Your design. Your name.<br><span>Printed on a shirt you'll love.</span></h1>
+  <p>Upload artwork, add text, choose your shirt and see it live. Bulk discounts from 6 pieces.</p>
+  <a href="#design" class="btn accent">Start designing</a></div>
+</section>
+
+<section class="designer" id="design">
+  <div class="tools">
+    <div class="tabs">
+      <button data-tab="product" class="active">Product</button>
+      <button data-tab="text">Add text</button>
+      <button data-tab="art">Upload art</button>
+      <button data-tab="clipart">Graphics</button>
+    </div>
+
+    <div class="tab" id="tab-product">
+      <label>Style</label><div class="opts" id="styleOpts"></div>
+      <label>Colour: <b id="colorName"></b></label><div class="swatches" id="colorOpts"></div>
+      <label>Size</label><div class="opts small" id="sizeOpts"></div>
+      <label>Quantity</label>
+      <div class="qty"><button id="qMinus">-</button><input id="qty" type="number" min="1" max="500" value="1"><button id="qPlus">+</button></div>
+    </div>
+
+    <div class="tab hidden" id="tab-text">
+      <label>Your text</label><input id="textInput" maxlength="60" placeholder="Type a name, number, slogan...">
+      <button class="btn block" id="addText">Add text to shirt</button>
+      <div id="textEdit" class="hidden">
+        <label>Font</label><select id="fontSel"></select>
+        <label>Text colour</label><div class="swatches" id="textColors"></div>
+        <label>Outline</label><div class="row"><input type="color" id="strokeColor" value="#000000"><input type="range" id="strokeW" min="0" max="10" value="0"></div>
+        <label>Curve</label><input type="range" id="curve" min="-100" max="100" value="0">
+        <div class="row"><button class="btn sm" id="boldBtn"><b>B</b></button><button class="btn sm" id="italicBtn"><i>I</i></button></div>
+      </div>
+    </div>
+
+    <div class="tab hidden" id="tab-art">
+      <div class="drop" id="drop" tabindex="0"><b>Drop your image here</b><br>or click to browse<br><small>PNG, JPG, SVG up to 15 MB. Transparent PNG prints best.</small></div>
+      <input type="file" id="fileIn" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden>
+      <p class="hint" id="dpiNote"></p>
+    </div>
+
+    <div class="tab hidden" id="tab-clipart"><div class="clips" id="clipGrid"></div></div>
+
+    <div class="layer-panel" id="layerPanel">
+      <label>Selected item</label>
+      <div class="row wrap">
+        <button class="btn sm" id="centerBtn">Center</button><button class="btn sm" id="fwdBtn">Bring forward</button>
+        <button class="btn sm" id="backBtn2">Send back</button><button class="btn sm" id="dupBtn">Duplicate</button>
+        <button class="btn sm danger" id="delBtn">Delete</button>
+      </div>
+      <label>Size</label><input type="range" id="sizeRange" min="10" max="300" value="100">
+      <label>Rotate</label><input type="range" id="rotRange" min="-180" max="180" value="0">
+    </div>
+  </div>
+
+  <div class="stage-wrap">
+    <div class="viewbar">
+      <button id="vFront" class="active">Front</button><button id="vBack">Back</button>
+      <span class="sp"></span><button id="undoBtn" title="Undo">Undo</button><button id="redoBtn" title="Redo">Redo</button>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="shirtCanvas" width="600" height="680"></canvas>
+      <div class="print-area" id="printArea"></div>
+    </div>
+    <p class="hint center">Drag items to move. Use the corner handle to resize and rotate. Dashed box = print area.</p>
+  </div>
+
+  <aside class="summary">
+    <h3>Your order</h3>
+    <div id="sumLines"></div>
+    <div class="price"><span>Total</span><b id="sumTotal">$0</b></div>
+    <p class="hint" id="discNote">Order 6+ to save 10%, 12+ to save 20%.</p>
+    <button class="btn accent block" id="addCart">Add to cart</button>
+  </aside>
+</section>
+
+<section class="section" id="how"><h2>How it works</h2>
+ <div class="steps"><div><b>1</b><h3>Design</h3><p>Upload art, add text or pick a graphic.</p></div>
+ <div><b>2</b><h3>Pay securely</h3><p>Checkout is handled by Square.</p></div>
+ <div><b>3</b><h3>We print and ship</h3><p>Most orders ship in 3 to 5 business days.</p></div></div>
+</section>
+
+<section class="section" id="faq"><h2>Questions</h2>
+ <details><summary>What file works best?</summary><p>A high resolution PNG with a transparent background. We'll warn you if your image is low quality.</p></details>
+ <details><summary>How long does it take?</summary><p>Most orders are printed and shipped within 3 to 5 business days.</p></details>
+ <details><summary>Do you do bulk orders?</summary><p>Yes. 10% off 6 or more and 20% off 12 or more of the same design.</p></details>
+ <details><summary>Is payment secure?</summary><p>Yes. You pay on Square's secure checkout page; we never see your card details.</p></details>
+</section>
+
+<footer class="footer" id="contact"><div><b>CustomTshirt73</b><p>Questions? Email <a href="mailto:customtshirt73@gmail.com">customtshirt73@gmail.com</a></p></div><p>&copy; CustomTshirt73</p></footer>
+
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer"><div class="drawer-head"><h3>Your cart</h3><button id="cartClose">&times;</button></div>
+ <div id="cartItems"></div><div class="price"><span>Total</span><b id="cartTotal">$0.00</b></div>
+ <button class="btn accent block" id="toCheckout">Checkout</button></aside>
+
+<div class="modal hidden" id="checkout"><div class="modal-box">
+ <button class="x" id="coClose">&times;</button><h3>Shipping details</h3>
+ <form id="coForm">
+  <input name="name" placeholder="Full name" required><input name="email" type="email" placeholder="Email" required>
+  <input name="phone" placeholder="Phone (optional)"><input name="address" placeholder="Street address" required>
+  <div class="row"><input name="city" placeholder="City" required><input name="state" placeholder="State" required maxlength="20"><input name="zip" placeholder="ZIP" required maxlength="10"></div>
+  <textarea name="notes" placeholder="Notes for us (optional)" maxlength="500"></textarea>
+  <button class="btn accent block" type="submit" id="payBtn">Continue to secure payment</button>
+  <p class="hint" id="coMsg"></p>
+ </form></div></div>
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body></html>
