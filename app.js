@@ -8,6 +8,14 @@ var COLORS=[{id:'white',name:'White',hex:'#f7f7f5'},{id:'black',name:'Black',hex
  {id:'forest',name:'Forest green',hex:'#2f5236'},{id:'maroon',name:'Maroon',hex:'#6b1f2a'},{id:'sand',name:'Sand',hex:'#d8c7a1'},
  {id:'pink',name:'Light pink',hex:'#f4c6cf'},{id:'gold',name:'Gold',hex:'#e7a92b'},{id:'purple',name:'Purple',hex:'#5b3a8c'}];
 var SIZES=[['xs',0],['s',0],['m',0],['l',0],['xl',0],['2xl',3],['3xl',3],['4xl',5]];
+
+/* ---------- WHAT'S IN STOCK (change these lists when your stock changes) ---------- */
+/* Anything NOT in these lists is greyed out and can't be picked. */
+var STYLES_IN_STOCK=['tee'];                      // add 'heavy', 'longsleeve' or 'hoodie' when you have them
+var COLORS_IN_STOCK=['black','red','white'];      // add colour ids from the COLORS list above
+var SIZES_IN_STOCK=['xs','s','m','l','xl','2xl','3xl','4xl'];  // remove a size if you run out
+function inStock(list,id){return list.indexOf(id)>-1}
+
 var BACK_PRINT=6;
 var FONTS=['Inter','Anton','Bebas Neue','Oswald','Graduate','Bungee','Permanent Marker','Pacifico','Lobster','Dancing Script','Playfair Display'];
 var TEXT_COLORS=['#ffffff','#111111','#e8483c','#f2b705','#2a52be','#2f8f4e','#7b3fa0','#ff7ab6','#c0c0c0','#d4af37'];
@@ -17,6 +25,8 @@ var AREA={front:{x:190,y:185,w:220,h:290},back:{x:180,y:170,w:240,h:320}};
 
 var state={style:'tee',color:'white',size:'m',qty:1,view:'front',sel:null,els:{front:[],back:[]}};
 var cart=[];try{cart=JSON.parse(localStorage.getItem('ct73cart'))||[]}catch(e){}
+/* drop any saved cart items that are no longer in stock */
+cart=cart.filter(function(i){return inStock(STYLES_IN_STOCK,i.style)&&inStock(COLORS_IN_STOCK,i.color)&&inStock(SIZES_IN_STOCK,i.size)});
 var history=[],future=[],uid=1;
 
 /* ---------- REALISTIC GARMENT DRAWING ---------- */
@@ -142,14 +152,31 @@ function handleFile(f){
             /* ---------- PRODUCT OPTIONS + PRICE ---------- */
 function find(a,id){return a.filter(function(x){return x.id===id})[0]}
 function build(){
- $('styleOpts').innerHTML=STYLES.map(function(s){return '<button class="opt" data-v="'+s.id+'">'+s.name+'<small>'+s.desc+' &middot; $'+s.price+'</small></button>'}).join('');
- $('colorOpts').innerHTML=COLORS.map(function(c){return '<button class="sw" title="'+c.name+'" data-v="'+c.id+'" style="background:'+c.hex+'"></button>'}).join('');
- $('sizeOpts').innerHTML=SIZES.map(function(s){return '<button class="opt" data-v="'+s[0]+'">'+s[0].toUpperCase()+(s[1]?'<small>+$'+s[1]+'</small>':'')+'</button>'}).join('');
+ // look for options that aren't in stock
+ var css=document.createElement('style');
+ css.textContent='.opt.unavailable,.sw.unavailable{opacity:.4;cursor:not-allowed}'+
+  '.sw.unavailable{position:relative;overflow:hidden}'+
+  '.sw.unavailable::after{content:"";position:absolute;left:50%;top:-20%;height:140%;width:2px;background:#777;transform:translateX(-50%) rotate(45deg)}'+
+  '.opt .soon{display:block;font-size:10px;font-weight:600;margin-top:2px}'+
+  '.stock-note{margin:6px 0 0;font-size:12px;opacity:.75}';
+ document.head.appendChild(css);
+
+ $('styleOpts').innerHTML=STYLES.map(function(s){var ok=inStock(STYLES_IN_STOCK,s.id);
+  return '<button class="opt'+(ok?'':' unavailable')+'" data-v="'+s.id+'"'+(ok?'':' disabled title="Not available at the moment"')+'>'+s.name+
+   (ok?'<small>'+s.desc+' &middot; $'+s.price+'</small>':'<span class="soon">Not available at the moment</span>')+'</button>'}).join('');
+ $('colorOpts').innerHTML=COLORS.map(function(c){var ok=inStock(COLORS_IN_STOCK,c.id);
+  return '<button class="sw'+(ok?'':' unavailable')+'" title="'+c.name+(ok?'':' (coming soon)')+'" data-v="'+c.id+'" style="background:'+c.hex+'"'+(ok?'':' disabled')+'></button>'}).join('');
+ if(COLORS_IN_STOCK.length<COLORS.length)$('colorOpts').insertAdjacentHTML('afterend','<p class="stock-note">Greyed-out colours are coming soon.</p>');
+ $('sizeOpts').innerHTML=SIZES.map(function(s){var ok=inStock(SIZES_IN_STOCK,s[0]);
+  return '<button class="opt'+(ok?'':' unavailable')+'" data-v="'+s[0]+'"'+(ok?'':' disabled title="Sold out"')+'>'+s[0].toUpperCase()+
+   (ok?(s[1]?'<small>+$'+s[1]+'</small>':''):'<span class="soon">Sold out</span>')+'</button>'}).join('');
  $('fontSel').innerHTML=FONTS.map(function(f){return '<option style="font-family:\''+f+'\'">'+f+'</option>'}).join('');
  $('textColors').innerHTML=TEXT_COLORS.map(function(c){return '<button class="sw" data-v="'+c+'" style="background:'+c+'"></button>'}).join('');
  $('clipGrid').innerHTML=CLIPS.map(function(c){return '<button>'+c+'</button>'}).join('');
  [['styleOpts','style'],['colorOpts','color'],['sizeOpts','size']].forEach(function(p){
-  $(p[0]).addEventListener('click',function(ev){var b=ev.target.closest('[data-v]');if(!b)return;state[p[1]]=b.getAttribute('data-v');update()})});
+  $(p[0]).addEventListener('click',function(ev){var b=ev.target.closest('[data-v]');
+   if(!b||b.disabled||b.classList.contains('unavailable'))return;   // can't pick out-of-stock options
+   state[p[1]]=b.getAttribute('data-v');update()})});
 }
 function unitPrice(){var s=find(STYLES,state.style).price,up=SIZES.filter(function(z){return z[0]===state.size})[0][1];
  return s+up+(state.els.front.length&&state.els.back.length?BACK_PRINT:0)}
@@ -187,6 +214,7 @@ function shrink(d,max){return new Promise(function(res){var i=new Image();i.onlo
 /* ---------- CART ---------- */
 function saveCart(){try{localStorage.setItem('ct73cart',JSON.stringify(cart))}catch(e){toast('Cart is too big to save if you leave the page')}}
 async function addToCart(){
+ if(!inStock(STYLES_IN_STOCK,state.style)||!inStock(COLORS_IN_STOCK,state.color)||!inStock(SIZES_IN_STOCK,state.size)){toast('Sorry, that option is not available at the moment');return}
  await document.fonts.ready;
  var f=exportSide('front',state.style,state.color),b=exportSide('back',state.style,state.color);
  var texts=[].concat(state.els.front,state.els.back).filter(function(e){return e.type==='text'}).map(function(e){return '"'+e.text+'" ('+e.font+')'});
