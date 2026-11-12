@@ -149,6 +149,72 @@ function handleFile(f){
   $('dpiNote').textContent=dpi<150?'Heads up: this image is low resolution ('+c.width+'px wide) and may print blurry at full size.':'Image looks good for printing.';
   $('dpiNote').className='hint'+(dpi<150?' warn':'');
   addEl({type:'img',src:c.toDataURL('image/png'),ar:c.height/c.width,size:.8})};im.src=rd.result};rd.readAsDataURL(f)}
+/* ---------- READY-MADE TEMPLATES ---------- */
+/* Each template has a few boxes for the customer to fill in, then builds the text for the shirt.
+   x / y = position inside the print box (0 to 1), size = width compared with the print box. */
+function ordinal(n){n=String(n).trim();var d=parseInt(n,10);if(isNaN(d))return n;var t=d%100,u=d%10;
+ return d+((t>10&&t<14)?'TH':u===1?'ST':u===2?'ND':u===3?'RD':'TH')}
+function tplColors(){var light=state.color==='white'||state.color==='sand'||state.color==='pink';
+ return{main:light?'#111111':'#ffffff',accent:state.color==='red'?'#f2b705':'#e8483c'}}
+function T(text,font,size,y,o){o=o||{};return{type:'text',text:String(text),font:font,color:o.color,stroke:o.stroke||'#000000',strokeW:o.strokeW||0,
+ curve:o.curve||0,bold:false,italic:false,size:size,x:.5,y:y}}
+var TEMPLATES=[
+ {id:'birthday',name:'Birthday',icon:'🎂',
+  fields:[{k:'name',label:'Name',def:'Jayden'},{k:'age',label:'Age',def:'5'}],
+  build:function(v,c){return{front:[
+   T(v.name.toUpperCase()+"'S",'Bebas Neue',.75,.2,{color:c.main}),
+   T(ordinal(v.age),'Anton',.55,.48,{color:c.accent}),
+   T('Birthday','Pacifico',.8,.78,{color:c.main})],back:[]}}},
+ {id:'reunion',name:'Family reunion',icon:'👨‍👩‍👧‍👦',
+  fields:[{k:'family',label:'Family name',def:'Johnson'},{k:'year',label:'Year',def:String(new Date().getFullYear())},{k:'place',label:'Place (optional)',def:''}],
+  build:function(v,c){var f=[
+   T('THE '+v.family.toUpperCase(),'Graduate',.9,.2,{color:c.main,curve:30}),
+   T('FAMILY REUNION','Bebas Neue',.95,.48,{color:c.accent}),
+   T(v.year,'Anton',.4,.7,{color:c.main})];
+   if(v.place.trim())f.push(T(v.place,'Inter',.6,.9,{color:c.main}));return{front:f,back:[]}}},
+ {id:'team',name:'Sports team',icon:'🏆',note:'Prints on the front and back.',
+  fields:[{k:'team',label:'Team name',def:'Tigers'},{k:'name',label:'Player name',def:'Smith'},{k:'number',label:'Number',def:'23'}],
+  build:function(v,c){return{
+   front:[T(v.team.toUpperCase(),'Graduate',.9,.25,{color:c.main,curve:25}),
+          T(v.number,'Anton',.45,.65,{color:c.accent,stroke:c.main,strokeW:3})],
+   back:[T(v.name.toUpperCase(),'Graduate',.75,.14,{color:c.main,curve:15}),
+         T(v.number,'Anton',.75,.55,{color:c.accent,stroke:c.main,strokeW:3})]}}},
+ {id:'memorial',name:'Memorial',icon:'🕊️',note:'Tip: add their photo in the Upload art tab.',
+  fields:[{k:'name',label:'Name',def:'Mary Johnson'},{k:'years',label:'Years',def:'1950 - '+new Date().getFullYear()},{k:'msg',label:'Message',def:'Forever in our hearts'}],
+  build:function(v,c){var f=[
+   T('In Loving Memory','Dancing Script',.85,.12,{color:c.main}),
+   T(v.name,'Playfair Display',.9,.72,{color:c.main}),
+   T(v.years,'Inter',.5,.83,{color:c.main})];
+   if(v.msg.trim())f.push(T(v.msg,'Dancing Script',.8,.94,{color:c.accent}));return{front:f,back:[]}}},
+ {id:'grad',name:'Graduation',icon:'🎓',
+  fields:[{k:'name',label:'Name',def:'Alex'},{k:'school',label:'School',def:'Lincoln High'},{k:'year',label:'Year',def:String(new Date().getFullYear())}],
+  build:function(v,c){return{front:[
+   T('CLASS OF','Bebas Neue',.6,.15,{color:c.main}),
+   T(v.year,'Anton',.65,.4,{color:c.accent}),
+   T(v.name,'Permanent Marker',.75,.68,{color:c.main}),
+   T(v.school.toUpperCase(),'Oswald',.7,.88,{color:c.main})],back:[]}}}
+];
+var curTpl=null;
+function showTplForm(t){curTpl=t;
+ document.querySelectorAll('#tplGrid button').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===t.id)});
+ $('tplForm').innerHTML='<h4>'+t.icon+' '+t.name+'</h4>'+t.fields.map(function(f){
+   return '<label>'+f.label+'</label><input data-k="'+f.k+'" maxlength="40" value="'+f.def.replace(/"/g,'&quot;')+'">'}).join('')+
+  (t.note?'<p class="hint">'+t.note+'</p>':'')+
+  '<button class="btn accent block" id="tplApply" type="button">Put it on my shirt</button>'+
+  '<p class="hint">This replaces anything already on the shirt. You can still move or change the text afterwards.</p>';
+ $('tplForm').classList.remove('hidden');
+ $('tplApply').onclick=applyTemplate}
+function applyTemplate(){if(!curTpl)return;var v={};
+ document.querySelectorAll('#tplForm input').forEach(function(i){var f=curTpl.fields.filter(function(x){return x.k===i.getAttribute('data-k')})[0];
+  v[i.getAttribute('data-k')]=i.value.trim()||(f.label.indexOf('optional')>-1?'':f.def)});
+ var d=curTpl.build(v,tplColors());snapshot();
+ ['front','back'].forEach(function(side){d[side].forEach(function(e){e.id=uid++;e.rot=0})});
+ state.els={front:d.front,back:d.back};state.sel=null;
+ var fonts={};d.front.concat(d.back).forEach(function(e){fonts[e.font]=1});
+ setView('front');
+ Promise.all(Object.keys(fonts).map(function(f){return document.fonts.load('400 40px "'+f+'"')})).then(function(){renderEls();update()});
+ toast(d.back.length?'Template added to the front and back. Tap any text to change it.':'Template added. Tap any text to change it.')}
+
             /* ---------- PRODUCT OPTIONS + PRICE ---------- */
 function find(a,id){return a.filter(function(x){return x.id===id})[0]}
 function build(){
@@ -190,6 +256,18 @@ function build(){
   state.mix[z]=Math.max(0,Math.min(500,(state.mix[z]||0)+parseInt(b.getAttribute('data-d'))));syncMix();update()});
  $('mixGrid').addEventListener('input',function(ev){var z=ev.target.getAttribute('data-s');if(!z)return;
   state.mix[z]=Math.max(0,Math.min(500,parseInt(ev.target.value)||0));update()});
+ // Templates tab
+ css.textContent+='.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:12px}'+
+  '.tpl-grid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid rgba(0,0,0,.15);border-radius:12px;background:transparent;color:inherit;cursor:pointer;font-weight:600;font-size:13px}'+
+  '.tpl-grid button span{font-size:28px;line-height:1}.tpl-grid button.active{border-color:#e8483c;box-shadow:0 0 0 2px #e8483c inset}'+
+  '#tplForm h4{margin:0 0 6px}#tplForm input{width:100%;box-sizing:border-box}';
+ var tb=document.createElement('button');tb.setAttribute('data-tab','templates');tb.textContent='Templates';
+ var tabs=document.querySelector('.tabs');tabs.insertBefore(tb,tabs.children[1]);
+ $('tab-clipart').insertAdjacentHTML('afterend','<div class="tab hidden" id="tab-templates"><p class="hint">Pick a ready-made design, type your details, and you\'re done.</p>'+
+  '<div class="tpl-grid" id="tplGrid">'+TEMPLATES.map(function(t){return '<button type="button" data-t="'+t.id+'"><span>'+t.icon+'</span>'+t.name+'</button>'}).join('')+'</div>'+
+  '<div id="tplForm" class="hidden"></div></div>');
+ $('tplGrid').addEventListener('click',function(ev){var b=ev.target.closest('[data-t]');if(!b)return;
+  showTplForm(TEMPLATES.filter(function(t){return t.id===b.getAttribute('data-t')})[0])});
  $('fontSel').innerHTML=FONTS.map(function(f){return '<option style="font-family:\''+f+'\'">'+f+'</option>'}).join('');
  $('textColors').innerHTML=TEXT_COLORS.map(function(c){return '<button class="sw" data-v="'+c+'" style="background:'+c+'"></button>'}).join('');
  $('clipGrid').innerHTML=CLIPS.map(function(c){return '<button>'+c+'</button>'}).join('');
