@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>CustomTshirt73 Admin</title>
+<style>
+  :root{--bg:#f4f3f0;--card:#fff;--ink:#141414;--muted:#6b6b6b;--line:#e2e0dc;--accent:#c8323a;--ok:#2f7d4a;--warn:#b7791f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{background:#141414;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px}
+  header b{font-size:17px}header span{flex:1}
+  header button{background:transparent;color:#fff;border:1px solid #555;border-radius:8px;padding:6px 10px;cursor:pointer}
+  main{max-width:860px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+  h2{margin:0 0 12px;font-size:20px}h3{margin:0 0 6px;font-size:17px}
+  label{display:block;font-weight:600;margin:12px 0 4px}
+  input,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:#fff;color:var(--ink)}
+  textarea{min-height:110px;resize:vertical}
+  .btn{display:inline-block;border:0;border-radius:10px;padding:11px 16px;font:600 15px system-ui,sans-serif;cursor:pointer;background:#e9e7e3;color:var(--ink);text-decoration:none}
+  .btn.accent{background:var(--accent);color:#fff}.btn.block{width:100%;margin-top:14px}.btn:disabled{opacity:.6;cursor:wait}
+  .muted{color:var(--muted);font-size:13px}.err{color:var(--accent);font-weight:600}
+  .req{display:block;width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit}
+  .req:hover{border-color:#bbb}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fdeaea;color:var(--accent)}
+  .badge.quoted{background:#e7f4ec;color:var(--ok)}
+  .photos{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .photos a img{width:110px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block}
+  .result{border-left:4px solid var(--ok)}.result.warn{border-left-color:var(--warn)}
+  .link-row{display:flex;gap:6px;margin-top:8px}.link-row input{flex:1;min-width:0;font-size:13px}
+  .hidden{display:none}
+</style>
+</head><body>
+<header><b>CustomTshirt73 Admin</b><span></span><button id="logout" class="hidden">Log out</button></header>
+<main>
+  <section id="login" class="card">
+    <h2>Log in</h2>
+    <form id="loginForm"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+    <button class="btn accent block" type="submit" id="loginBtn">Log in</button><p class="err" id="loginErr"></p></form>
+  </section>
+
+  <section id="list" class="hidden">
+    <div class="row" style="margin-bottom:12px"><h2 style="flex:1;margin:0">Design requests</h2><button class="btn" id="refresh">Refresh</button></div>
+    <div id="reqs"></div>
+  </section>
+
+  <section id="detail" class="hidden">
+    <button class="btn" id="back">&larr; All requests</button>
+    <div class="card" style="margin-top:12px" id="info"></div>
+    <div class="card" id="quoteCard">
+      <h3>Send a price</h3>
+      <p class="muted">This makes a Square payment link for the price and sends it to the customer.</p>
+      <form id="quoteForm">
+        <label for="price">Price ($)</label><input id="price" type="number" min="1" max="10000" step="0.01" required inputmode="decimal">
+        <label for="msg">Message to the customer</label><textarea id="msg" maxlength="1500"></textarea>
+        <button class="btn accent block" type="submit" id="quoteBtn">Create payment link and send</button>
+        <p class="err" id="quoteErr"></p>
+      </form>
+    </div>
+    <div class="card result hidden" id="result"></div>
+  </section>
+</main>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var pw='',cur=null;
+try{pw=sessionStorage.getItem('ct73admin')||''}catch(e){}
+var esc=function(s){return String(s==null?'':s).replace(/[<>&"]/g,function(c){return{'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]})};
+function show(id){['login','list','detail'].forEach(function(s){$(s).classList.toggle('hidden',s!==id)});$('logout').classList.toggle('hidden',id==='login')}
+async function api(body){body.password=pw;var r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ var d=await r.json().catch(function(){return{error:'Server error'}});if(r.status===401){logout();throw new Error('Wrong password')}if(!r.ok)throw new Error(d.error||'Something went wrong');return d}
+function when(iso){try{return new Date(iso).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})}catch(e){return iso}}
+function logout(){pw='';try{sessionStorage.removeItem('ct73admin')}catch(e){}show('login')}
+
+async function loadList(){show('list');$('reqs').innerHTML='<p class="muted">Loading...</p>';
+ try{var d=await api({action:'list'});
+  $('reqs').innerHTML=d.requests.length?d.requests.map(function(r){
+   return '<button class="card req" data-id="'+esc(r.id)+'"><div class="row"><b style="flex:1">'+esc(r.name)+'</b>'+
+    '<span class="badge '+(r.status==='quoted'?'quoted':'')+'">'+(r.status==='quoted'?'Price sent $'+Number(r.quote.price).toFixed(2):'New')+'</span></div>'+
+    '<div class="muted">'+esc(r.id)+' &middot; '+when(r.created)+(r.photoCount?' &middot; '+r.photoCount+' photo(s)':'')+'</div>'+
+    '<div style="margin-top:6px">'+esc(r.idea).slice(0,160)+(r.idea.length>160?'...':'')+'</div></button>'}).join(''):'<p class="muted">No design requests yet.</p>'}
+ catch(e){$('reqs').innerHTML='<p class="err">'+esc(e.message)+'</p>'}}
+
+async function openReq(id){show('detail');$('info').innerHTML='<p class="muted">Loading...</p>';$('result').classList.add('hidden');$('quoteErr').textContent='';
+ try{var r=await api({action:'get',id:id});cur=r;
+  $('info').innerHTML='<h3>'+esc(r.name)+' <span class="muted">'+esc(r.id)+'</span></h3>'+
+   '<div class="muted">'+when(r.created)+'</div>'+
+   '<p><a href="mailto:'+esc(r.email)+'">'+esc(r.email)+'</a>'+(r.phone?' &middot; <a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a>':'')+'</p>'+
+   '<p style="white-space:pre-wrap">'+esc(r.idea)+'</p>'+
+   '<p><b>Shirt:</b> '+esc(r.style)+', '+esc(r.color)+'<br><b>How many / sizes:</b> '+(esc(r.sizes)||'not given')+'<br><b>Needed by:</b> '+(esc(r.needBy)||'not given')+'</p>'+
+   (r.photos&&r.photos.length?'<div class="photos">'+r.photos.map(function(p,i){return '<a href="'+p+'" download="'+esc(r.id)+'-photo'+(i+1)+'.jpg" title="Download"><img src="'+p+'" alt="Photo '+(i+1)+'"></a>'}).join('')+'</div><p class="muted">Tap a photo to download it.</p>':'')+
+   (r.quote?'<p><span class="badge quoted">Price sent $'+Number(r.quote.price).toFixed(2)+' on '+when(r.quote.at)+'</span></p><div class="link-row"><input readonly value="'+esc(r.quote.link)+'"><button class="btn" data-copy>Copy link</button></div>':'');
+  $('price').value=r.quote?r.quote.price:'';
+  $('msg').value=r.quote?r.quote.message:'Hi '+r.name.split(' ')[0]+',\n\nThanks for your idea! Here is the price for your custom shirt. Pay securely with the link below and we will start printing.\n\nCustomTshirt73';
+  $('quoteBtn').textContent=r.quote?'Make a new link and send again':'Create payment link and send'}
+ catch(e){$('info').innerHTML='<p class="err">'+esc(e.message)+'</p>'}}
+
+function mailtoFor(d,price,msg){return 'mailto:'+encodeURIComponent(d.email)+'?subject='+encodeURIComponent('Your custom shirt price - '+cur.id)+
+ '&body='+encodeURIComponent(msg+'\n\nPrice: $'+Number(price).toFixed(2)+'\nPay here: '+d.link+'\n\nQuestions? Call or text 220-204-0090.')}
+
+$('loginForm').onsubmit=async function(ev){ev.preventDefault();$('loginErr').textContent='';$('loginBtn').disabled=true;pw=$('pw').value;
+ try{await api({action:'list'});try{sessionStorage.setItem('ct73admin',pw)}catch(e){}$('pw').value='';loadList()}
+ catch(e){$('loginErr').textContent=e.message;show('login')}finally{$('loginBtn').disabled=false}};
+$('logout').onclick=logout;$('refresh').onclick=loadList;$('back').onclick=loadList;
+$('reqs').onclick=function(ev){var b=ev.target.closest('[data-id]');if(b)openReq(b.getAttribute('data-id'))};
+document.addEventListener('click',function(ev){var b=ev.target.closest('[data-copy]');if(!b)return;var i=b.parentNode.querySelector('input');i.select();
+ (navigator.clipboard?navigator.clipboard.writeText(i.value):Promise.reject()).then(function(){b.textContent='Copied'},function(){try{document.execCommand('copy');b.textContent='Copied'}catch(e){}})});
+$('quoteForm').onsubmit=async function(ev){ev.preventDefault();if(!cur)return;$('quoteErr').textContent='';$('quoteBtn').disabled=true;$('quoteBtn').textContent='Working...';
+ var price=$('price').value,msg=$('msg').value;
+ try{var d=await api({action:'quote',id:cur.id,price:price,message:msg});
+  var res=$('result');res.classList.remove('hidden');res.classList.toggle('warn',!d.emailed);
+  res.innerHTML=(d.emailed?'<h3>Sent!</h3><p>'+esc(d.name)+' has been emailed the price and payment link. Square will tell you when they pay.</p>':
+    '<h3>Payment link ready</h3><p>The site could not email the customer by itself yet, so send it from your Gmail: press the button below, check the message, and hit Send.</p>'+
+    '<a class="btn accent" href="'+mailtoFor(d,price,msg)+'">Open email to '+esc(d.name)+'</a>')+
+   '<div class="link-row"><input readonly value="'+esc(d.link)+'"><button class="btn" data-copy>Copy link</button></div>'+
+   '<p class="muted">You can also paste this link into a text message.</p>';
+  res.scrollIntoView({behavior:'smooth'});cur.quote={price:price,link:d.link,message:msg};$('quoteBtn').textContent='Make a new link and send again'}
+ catch(e){$('quoteErr').textContent=e.message;$('quoteBtn').textContent=cur&&cur.quote?'Make a new link and send again':'Create payment link and send'}
+ finally{$('quoteBtn').disabled=false}};
+
+if(pw)loadList();else show('login');
+})();
+</script>
+</body></html>
