@@ -6,6 +6,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Anton&family=Bebas+Neue&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:wght@700&family=Oswald:wght@600&family=Lobster&family=Graduate&family=Bungee&family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<style>
+  /* Greyed-out options that aren't in stock */
+  .unavailable { opacity: 0.4; cursor: not-allowed !important; position: relative; }
+  .unavailable .soon { display: block; font-size: 10px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+  .footer a.contact-link { white-space: nowrap; }
+</style>
 </head><body>
 <header class="nav">
   <a class="brand" href="#top"><span class="logo">73</span>CustomTshirt73</a>
@@ -102,7 +108,10 @@
  <details><summary>Is payment secure?</summary><p>Yes. You pay on Square's secure checkout page; we never see your card details.</p></details>
 </section>
 
-<footer class="footer" id="contact"><div><b>CustomTshirt73</b><p>Questions? Email <a href="mailto:customtshirt73@gmail.com">customtshirt73@gmail.com</a></p></div><p>&copy; CustomTshirt73</p></footer>
+<footer class="footer" id="contact"><div><b>CustomTshirt73</b>
+  <p>Questions? Email <a class="contact-link" href="mailto:customtshirt73@gmail.com">customtshirt73@gmail.com</a></p>
+  <p>Or call <a class="contact-link" href="tel:+12202040090">220-204-0090</a></p>
+</div><p>&copy; CustomTshirt73</p></footer>
 
 <div class="overlay" id="overlay"></div>
 <aside class="drawer" id="drawer"><div class="drawer-head"><h3>Your cart</h3><button id="cartClose">&times;</button></div>
