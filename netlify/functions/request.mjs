@@ -12,7 +12,6 @@ export default async (req) => {
     const raw = await req.text();
     if (raw.length > MAX_BYTES) return Response.json({ error: "Your photos are too big. Please try fewer or smaller photos." }, { status: 413 });
     const b = JSON.parse(raw);
-    if (b.company) return Response.json({ ok: true });   // hidden box only robots fill in
 
     const r = {
       name: str(b.name, 100), email: str(b.email, 150), phone: str(b.phone, 30),
