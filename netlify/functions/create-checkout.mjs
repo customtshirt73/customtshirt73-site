@@ -15,6 +15,11 @@ function unitPrice(it){
   return base + up + (it.front && it.back ? BACK_PRINT : 0);
 }
 function discount(q){ return q>=12 ? 0.20 : q>=6 ? 0.10 : 0; }
+// One design can be ordered in several sizes (group orders). Older carts send just size + qty.
+function itemLines(it){
+  const raw = Array.isArray(it.lines) && it.lines.length ? it.lines.slice(0, 20) : [{ size: it.size, qty: it.qty }];
+  return raw.map(l => ({ size: String(l.size), qty: Math.max(0, Math.min(500, parseInt(l.qty) || 0)) })).filter(l => l.qty > 0);
+}
 const esc = s => String(s??"").replace(/[<>&"]/g, c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
 
 export default async (req) => {
@@ -25,15 +30,18 @@ export default async (req) => {
     if (!customer?.name || !customer?.email || !customer?.address) throw new Error("missing details");
 
     const orderId = "CT73-" + Date.now().toString(36).toUpperCase();
-    const lineItems = items.map(it => {
-      const qty = Math.max(1, Math.min(500, parseInt(it.qty) || 1));
-      const cents = Math.round(unitPrice(it) * (1 - discount(qty)) * 100);
-      return {
-        name: `${it.styleName} - ${it.colorName} - ${String(it.size).toUpperCase()}`.slice(0,500),
-        quantity: String(qty),
+    const lineItems = items.flatMap(it => {
+      const lines = itemLines(it);
+      const total = lines.reduce((s, l) => s + l.qty, 0);
+      if (!total) throw new Error("no sizes picked");
+      if (total > 500) throw new Error("too many shirts in one item");
+      const d = discount(total);   // bulk discount counts every size of the same design
+      return lines.map(l => ({
+        name: `${it.styleName} - ${it.colorName} - ${l.size.toUpperCase()}`.slice(0,500),
+        quantity: String(l.qty),
         note: (it.summary || "").slice(0, 400),
-        base_price_money: { amount: cents, currency: "USD" }
-      };
+        base_price_money: { amount: Math.round(unitPrice({ ...it, size: l.size }) * (1 - d) * 100), currency: "USD" }
+      }));
     });
 
     // Save full order (with print files) in Netlify Blobs
@@ -71,7 +79,7 @@ export default async (req) => {
             attachments.push({ filename: `${orderId}-item${i+1}-${side}-mockup.png`, content: m.split(",")[1] });
         }
       });
-      const rows = items.map((it,i)=>`<li><b>Item ${i+1}:</b> ${esc(it.styleName)}, ${esc(it.colorName)}, size ${esc(it.size).toUpperCase()}, qty ${esc(it.qty)}<br>${esc(it.summary)}</li>`).join("");
+      const rows = items.map((it,i)=>`<li><b>Item ${i+1}:</b> ${esc(it.styleName)}, ${esc(it.colorName)}, sizes ${itemLines(it).map(l=>esc(l.size).toUpperCase()+' x '+l.qty).join(', ')}<br>${esc(it.summary)}</li>`).join("");
       await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { "Authorization": "Bearer " + process.env.RESEND_API_KEY, "Content-Type": "application/json" },
