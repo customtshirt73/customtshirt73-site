@@ -256,6 +256,11 @@ function build(){
   state.mix[z]=Math.max(0,Math.min(500,(state.mix[z]||0)+parseInt(b.getAttribute('data-d'))));syncMix();update()});
  $('mixGrid').addEventListener('input',function(ev){var z=ev.target.getAttribute('data-s');if(!z)return;
   state.mix[z]=Math.max(0,Math.min(500,parseInt(ev.target.value)||0));update()});
+ // Share button under Add to cart
+ css.textContent+='.share-btn{margin-top:8px}.share-box{margin-top:8px;display:flex;gap:6px}.share-box.hidden{display:none}.share-box input{flex:1;min-width:0;font-size:12px}';
+ $('addCart').insertAdjacentHTML('afterend','<button class="btn block share-btn" id="shareBtn" type="button">Share this design</button>'+
+  '<div class="share-box hidden" id="shareBox"><input id="shareLink" readonly><button class="btn sm" id="copyShare" type="button">Copy</button></div>');
+ $('shareBtn').onclick=shareDesign;$('copyShare').onclick=copyShare;
  // Templates tab
  css.textContent+='.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;margin-bottom:12px}'+
   '.tpl-grid button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;border:1px solid rgba(0,0,0,.15);border-radius:12px;background:transparent;color:inherit;cursor:pointer;font-weight:600;font-size:13px}'+
@@ -343,6 +348,40 @@ function openCart(){$('overlay').classList.add('show');$('drawer').classList.add
 function closeCart(){$('overlay').classList.remove('show');$('drawer').classList.remove('show')}
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove('show')},2500)}
 
+/* ---------- SHARE A DESIGN ---------- */
+async function shareDesign(){
+ if(!state.els.front.length&&!state.els.back.length){toast('Add a design first');return}
+ var btn=$('shareBtn');btn.disabled=true;btn.textContent='Making your link...';
+ try{
+  var els={};
+  for(var side of ['front','back']){els[side]=[];
+   for(var e of state.els[side]){var c=JSON.parse(JSON.stringify(e));delete c.id;
+    if(c.type==='img')c.src=await shrink(c.src,1600);   // keeps the link small enough to save
+    els[side].push(c)}}
+  var r=await fetch('/api/design',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({style:state.style,color:state.color,els:els})});
+  var d=await r.json();if(!r.ok||!d.id)throw new Error(d.error||'could not save');
+  var link=location.origin+location.pathname+'?design='+d.id;
+  $('shareLink').value=link;$('shareBox').classList.remove('hidden');
+  if(navigator.share){try{await navigator.share({title:'My CustomTshirt73 design',text:'What do you think of this shirt?',url:link});return}catch(x){}}
+  copyShare();
+ }catch(err){toast('Sorry, the link could not be made: '+err.message)}
+ finally{btn.disabled=false;btn.textContent='Share this design'}}
+function copyShare(){var i=$('shareLink');i.select();
+ (navigator.clipboard?navigator.clipboard.writeText(i.value):Promise.reject()).then(function(){toast('Link copied - paste it in a text or message')},
+  function(){try{document.execCommand('copy');toast('Link copied')}catch(e){toast('Copy the link from the box')}})}
+async function loadSharedDesign(){
+ var id=new URLSearchParams(location.search).get('design');if(!id)return;
+ try{var r=await fetch('/api/design?id='+encodeURIComponent(id));var d=await r.json();if(!r.ok)throw new Error(d.error);
+  if(inStock(STYLES_IN_STOCK,d.style)&&find(STYLES,d.style))state.style=d.style;
+  if(inStock(COLORS_IN_STOCK,d.color)&&find(COLORS,d.color))state.color=d.color;
+  ['front','back'].forEach(function(side){(d.els[side]||[]).forEach(function(e){e.id=uid++})});
+  state.els={front:d.els.front||[],back:d.els.back||[]};state.sel=null;
+  var fonts={};state.els.front.concat(state.els.back).forEach(function(e){if(e.type==='text')fonts[e.font]=1});
+  setView(state.els.front.length?'front':'back');
+  await Promise.all(Object.keys(fonts).map(function(f){return document.fonts.load('400 40px "'+f+'"')}));renderEls();update();
+  $('design').scrollIntoView({behavior:'smooth'});toast('Shared design loaded. Change anything you like, then add it to your cart.');
+ }catch(e){toast('Sorry, that design link did not work')}}
+
 /* ---------- CHECKOUT -> SQUARE ---------- */
 async function submitOrder(ev){ev.preventDefault();var fd=new FormData($('coForm')),customer={};fd.forEach(function(v,k){customer[k]=String(v).trim()});
  $('payBtn').disabled=true;$('payBtn').textContent='Preparing secure checkout...';$('coMsg').textContent='';
@@ -398,6 +437,7 @@ function init(){
  $('toCheckout').onclick=function(){if(cart.length){closeCart();$('checkout').classList.remove('hidden')}};
  $('coClose').onclick=function(){$('checkout').classList.add('hidden')};$('coForm').onsubmit=submitOrder;
  addEventListener('resize',renderEls);document.fonts.ready.then(renderEls);
+ loadSharedDesign();
 }
 document.addEventListener('DOMContentLoaded',init);
 })();
