@@ -23,10 +23,10 @@ var CLIPS=['★','♥','⚡','👑','🔥','⚽','🏀','🏈','⚾','🎂','�
 /* print area, in canvas coords (600x680) */
 var AREA={front:{x:190,y:185,w:220,h:290},back:{x:180,y:170,w:240,h:320}};
 
-var state={style:'tee',color:'white',size:'m',qty:1,view:'front',sel:null,els:{front:[],back:[]}};
+var state={style:'tee',color:'white',size:'m',qty:1,mixed:false,mix:{},view:'front',sel:null,els:{front:[],back:[]}};
 var cart=[];try{cart=JSON.parse(localStorage.getItem('ct73cart'))||[]}catch(e){}
 /* drop any saved cart items that are no longer in stock */
-cart=cart.filter(function(i){return inStock(STYLES_IN_STOCK,i.style)&&inStock(COLORS_IN_STOCK,i.color)&&inStock(SIZES_IN_STOCK,i.size)});
+cart=cart.filter(function(i){return inStock(STYLES_IN_STOCK,i.style)&&inStock(COLORS_IN_STOCK,i.color)&&itemLines(i).every(function(l){return inStock(SIZES_IN_STOCK,l.size)})});
 var history=[],future=[],uid=1;
 
 /* ---------- REALISTIC GARMENT DRAWING ---------- */
@@ -170,6 +170,26 @@ function build(){
  $('sizeOpts').innerHTML=SIZES.map(function(s){var ok=inStock(SIZES_IN_STOCK,s[0]);
   return '<button class="opt'+(ok?'':' unavailable')+'" data-v="'+s[0]+'"'+(ok?'':' disabled title="Sold out"')+'>'+s[0].toUpperCase()+
    (ok?(s[1]?'<small>+$'+s[1]+'</small>':''):'<span class="soon">Sold out</span>')+'</button>'}).join('');
+ // group order: different sizes for one design
+ css.textContent+='.mix-toggle{display:flex;align-items:center;gap:8px;margin:10px 0 4px;font-weight:600;cursor:pointer}'+
+  '.mix-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px;margin:6px 0 4px}.mix-grid.hidden{display:none}'+
+  '.mix-row{display:flex;align-items:center;gap:4px}.mix-row span{width:34px;font-weight:600}'+
+  '.mix-row input{width:44px;text-align:center}.mix-row button{width:28px;height:28px;cursor:pointer}'+
+  '.mix-total{font-size:13px;margin:4px 0 0;font-weight:600}';
+ $('sizeOpts').insertAdjacentHTML('afterend','<label class="mix-toggle"><input type="checkbox" id="mixToggle"> Group order: different sizes</label>'+
+  '<div class="mix-grid hidden" id="mixGrid">'+SIZES.filter(function(z){return inStock(SIZES_IN_STOCK,z[0])}).map(function(z){
+   return '<div class="mix-row"><span>'+z[0].toUpperCase()+'</span><button type="button" data-s="'+z[0]+'" data-d="-1">-</button>'+
+    '<input type="number" min="0" max="500" value="0" data-s="'+z[0]+'"><button type="button" data-s="'+z[0]+'" data-d="1">+</button></div>'}).join('')+
+  '</div><p class="mix-total hidden" id="mixTotal"></p>');
+ $('mixToggle').addEventListener('change',function(){state.mixed=this.checked;
+  if(state.mixed&&!totalQty(lines())){state.mix={};state.mix[state.size]=state.qty;syncMix()}
+  $('mixGrid').classList.toggle('hidden',!state.mixed);$('mixTotal').classList.toggle('hidden',!state.mixed);
+  $('sizeOpts').classList.toggle('hidden',state.mixed);$('qty').parentNode.classList.toggle('hidden',state.mixed);
+  $('qty').parentNode.previousElementSibling.classList.toggle('hidden',state.mixed);update()});
+ $('mixGrid').addEventListener('click',function(ev){var b=ev.target.closest('button[data-d]');if(!b)return;var z=b.getAttribute('data-s');
+  state.mix[z]=Math.max(0,Math.min(500,(state.mix[z]||0)+parseInt(b.getAttribute('data-d'))));syncMix();update()});
+ $('mixGrid').addEventListener('input',function(ev){var z=ev.target.getAttribute('data-s');if(!z)return;
+  state.mix[z]=Math.max(0,Math.min(500,parseInt(ev.target.value)||0));update()});
  $('fontSel').innerHTML=FONTS.map(function(f){return '<option style="font-family:\''+f+'\'">'+f+'</option>'}).join('');
  $('textColors').innerHTML=TEXT_COLORS.map(function(c){return '<button class="sw" data-v="'+c+'" style="background:'+c+'"></button>'}).join('');
  $('clipGrid').innerHTML=CLIPS.map(function(c){return '<button>'+c+'</button>'}).join('');
@@ -178,22 +198,32 @@ function build(){
    if(!b||b.disabled||b.classList.contains('unavailable'))return;   // can't pick out-of-stock options
    state[p[1]]=b.getAttribute('data-v');update()})});
 }
-function unitPrice(){var s=find(STYLES,state.style).price,up=SIZES.filter(function(z){return z[0]===state.size})[0][1];
+function unitFor(size){var s=find(STYLES,state.style).price,up=SIZES.filter(function(z){return z[0]===size})[0][1];
  return s+up+(state.els.front.length&&state.els.back.length?BACK_PRINT:0)}
+function unitPrice(){return unitFor(state.size)}
+/* the sizes being ordered right now: one size, or a group breakdown */
+function lines(){
+ if(!state.mixed)return[{size:state.size,qty:state.qty,unit:unitFor(state.size)}];
+ return SIZES.filter(function(z){return (state.mix[z[0]]||0)>0}).map(function(z){return{size:z[0],qty:state.mix[z[0]],unit:unitFor(z[0])}})}
+function totalQty(L){return L.reduce(function(s,l){return s+l.qty},0)}
+function syncMix(){document.querySelectorAll('#mixGrid input').forEach(function(i){i.value=state.mix[i.getAttribute('data-s')]||0})}
+function sizeText(L){return L.map(function(l){return l.size.toUpperCase()+' &times; '+l.qty}).join(', ')}
 function disc(q){return q>=12?.2:q>=6?.1:0}
 function update(){
  drawGarment($('shirtCanvas').getContext('2d'),state.style,find(COLORS,state.color).hex,state.view);
  document.querySelectorAll('#styleOpts .opt,#sizeOpts .opt,#colorOpts .sw').forEach(function(b){
   var v=b.getAttribute('data-v');b.classList.toggle('active',v===state.style||v===state.color||v===state.size)});
  $('colorName').textContent=find(COLORS,state.color).name;
- var u=unitPrice(),q=state.qty,d=disc(q),t=u*q*(1-d);
- $('sumLines').innerHTML='<div><span>'+find(STYLES,state.style).name+', '+find(COLORS,state.color).name+', '+state.size.toUpperCase()+'</span></div>'+
-  '<div><span>$'+u.toFixed(2)+' &times; '+q+'</span><span>$'+(u*q).toFixed(2)+'</span></div>'+
+ var L=lines(),q=totalQty(L),sub=L.reduce(function(s,l){return s+l.unit*l.qty},0),d=disc(q),t=sub*(1-d);
+ if(state.mixed)$('mixTotal').textContent='Total shirts: '+q+(q>=12?' (20% off)':q>=6?' (10% off)':q?' - order 6+ to save 10%':'');
+ $('sumLines').innerHTML='<div><span>'+find(STYLES,state.style).name+', '+find(COLORS,state.color).name+'</span></div>'+
+  (L.length?L.map(function(l){return '<div><span>'+l.size.toUpperCase()+': $'+l.unit.toFixed(2)+' &times; '+l.qty+'</span><span>$'+(l.unit*l.qty).toFixed(2)+'</span></div>'}).join(''):'<div><span>Pick at least one size</span></div>')+
   (state.els.front.length&&state.els.back.length?'<div><span>Front + back print</span><span>incl. $'+BACK_PRINT+'</span></div>':'')+
-  (d?'<div><span>Bulk discount '+d*100+'%</span><span>-$'+(u*q*d).toFixed(2)+'</span></div>':'');
+  (d?'<div><span>Bulk discount '+d*100+'%</span><span>-$'+(sub*d).toFixed(2)+'</span></div>':'');
  $('sumTotal').textContent='$'+t.toFixed(2);
- $('addCart').disabled=!(state.els.front.length||state.els.back.length);
- $('addCart').textContent=$('addCart').disabled?'Add a design first':'Add to cart';
+ var hasDesign=!!(state.els.front.length||state.els.back.length);
+ $('addCart').disabled=!hasDesign||!q;
+ $('addCart').textContent=!hasDesign?'Add a design first':!q?'Pick at least one size':'Add to cart';
 }
 
 /* ---------- EXPORT: print file (transparent PNG) + mockup ---------- */
@@ -214,19 +244,21 @@ function shrink(d,max){return new Promise(function(res){var i=new Image();i.onlo
 /* ---------- CART ---------- */
 function saveCart(){try{localStorage.setItem('ct73cart',JSON.stringify(cart))}catch(e){toast('Cart is too big to save if you leave the page')}}
 async function addToCart(){
- if(!inStock(STYLES_IN_STOCK,state.style)||!inStock(COLORS_IN_STOCK,state.color)||!inStock(SIZES_IN_STOCK,state.size)){toast('Sorry, that option is not available at the moment');return}
+ var L=lines();if(!totalQty(L)){toast('Pick at least one size');return}
+ if(!inStock(STYLES_IN_STOCK,state.style)||!inStock(COLORS_IN_STOCK,state.color)||!L.every(function(l){return inStock(SIZES_IN_STOCK,l.size)})){toast('Sorry, that option is not available at the moment');return}
  await document.fonts.ready;
  var f=exportSide('front',state.style,state.color),b=exportSide('back',state.style,state.color);
  var texts=[].concat(state.els.front,state.els.back).filter(function(e){return e.type==='text'}).map(function(e){return '"'+e.text+'" ('+e.font+')'});
  var item={id:Date.now(),style:state.style,styleName:find(STYLES,state.style).name,color:state.color,colorName:find(COLORS,state.color).name,
-  size:state.size,qty:state.qty,front:!!f,back:!!b,unit:unitPrice(),
+  size:L.length>1?'mixed':L[0].size,qty:totalQty(L),lines:L,front:!!f,back:!!b,unit:L[0].unit,
   summary:'Print: '+(f&&b?'front + back':f?'front':'back')+(texts.length?'. Text: '+texts.join(', '):''),
   files:{front:f&&f.file,back:b&&b.file},mockups:{front:f&&await shrink(f.mock,500),back:b&&await shrink(b.mock,500)},thumb:await shrink((f||b).mock,160)};
  cart.push(item);saveCart();renderCart();openCart();toast('Added to cart')}
-function itemTotal(i){return i.unit*i.qty*(1-disc(i.qty))}
+function itemLines(i){return i.lines&&i.lines.length?i.lines:[{size:i.size,qty:i.qty,unit:i.unit}]}
+function itemTotal(i){var L=itemLines(i);return L.reduce(function(s,l){return s+l.unit*l.qty},0)*(1-disc(totalQty(L)))}
 function renderCart(){
  $('cartCount').textContent=cart.reduce(function(s,i){return s+i.qty},0);
- $('cartItems').innerHTML=cart.length?cart.map(function(i){return '<div class="ci"><img src="'+i.thumb+'" alt=""><div><b>'+i.styleName+'</b><br>'+i.colorName+', '+i.size.toUpperCase()+' &times; '+i.qty+
+ $('cartItems').innerHTML=cart.length?cart.map(function(i){return '<div class="ci"><img src="'+i.thumb+'" alt=""><div><b>'+i.styleName+'</b><br>'+i.colorName+', '+sizeText(itemLines(i))+
   '<br>'+i.summary+'<br><b>$'+itemTotal(i).toFixed(2)+'</b><br><button data-id="'+i.id+'">Remove</button></div></div>'}).join(''):'<p class="hint">Your cart is empty.</p>';
  $('cartTotal').textContent='$'+cart.reduce(function(s,i){return s+itemTotal(i)},0).toFixed(2);$('toCheckout').disabled=!cart.length}
 function openCart(){$('overlay').classList.add('show');$('drawer').classList.add('show')}
@@ -237,7 +269,7 @@ function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');clear
 async function submitOrder(ev){ev.preventDefault();var fd=new FormData($('coForm')),customer={};fd.forEach(function(v,k){customer[k]=String(v).trim()});
  $('payBtn').disabled=true;$('payBtn').textContent='Preparing secure checkout...';$('coMsg').textContent='';
  try{var r=await fetch('/api/checkout',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({customer:customer,items:cart.map(function(i){return{style:i.style,styleName:i.styleName,colorName:i.colorName,size:i.size,qty:i.qty,front:i.front,back:i.back,summary:i.summary,files:i.files,mockups:i.mockups}})})});
+   body:JSON.stringify({customer:customer,items:cart.map(function(i){return{style:i.style,styleName:i.styleName,colorName:i.colorName,size:i.size,qty:i.qty,lines:itemLines(i).map(function(l){return{size:l.size,qty:l.qty}}),front:i.front,back:i.back,summary:i.summary,files:i.files,mockups:i.mockups}})})});
   var d=await r.json();if(!r.ok||!d.url)throw new Error(d.error||'Checkout failed');location.href=d.url}
  catch(e){$('coMsg').textContent='Sorry, something went wrong: '+e.message+'. Please try again or email us.';$('payBtn').disabled=false;$('payBtn').textContent='Continue to secure payment'}}
 
