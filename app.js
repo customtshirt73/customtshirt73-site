@@ -271,6 +271,33 @@ function build(){
  $('tab-clipart').insertAdjacentHTML('afterend','<div class="tab hidden" id="tab-templates"><p class="hint">Pick a ready-made design, type your details, and you\'re done.</p>'+
   '<div class="tpl-grid" id="tplGrid">'+TEMPLATES.map(function(t){return '<button type="button" data-t="'+t.id+'"><span>'+t.icon+'</span>'+t.name+'</button>'}).join('')+'</div>'+
   '<div id="tplForm" class="hidden"></div></div>');
+ // Design it for me tab
+ css.textContent+='#reqForm textarea,#reqForm select,#reqForm input:not([type=file]){width:100%;box-sizing:border-box}'+
+  '#reqForm .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}'+
+  '.req-thumbs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.req-thumb{position:relative}'+
+  '.req-thumb img{width:64px;height:64px;object-fit:cover;border-radius:8px;display:block}'+
+  '.req-thumb button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:0;background:#111;color:#fff;cursor:pointer;line-height:1}'+
+  '.req-done{padding:12px 0}';
+ var db=document.createElement('button');db.setAttribute('data-tab','custom');db.textContent='Design it for me';tabs.appendChild(db);
+ var opt=function(list,ids){return list.filter(function(x){return inStock(ids,x.id)}).map(function(x){return '<option value="'+x.id+'">'+x.name+'</option>'}).join('')};
+ $('tab-templates').insertAdjacentHTML('afterend','<div class="tab hidden" id="tab-custom">'+
+  '<p class="hint">Not sure how to design it? Tell us your idea and we\'ll make it for you. We\'ll contact you with a design and a price before you pay anything.</p>'+
+  '<form id="reqForm">'+
+  '<label>Your idea</label><textarea name="idea" required maxlength="1500" rows="4" placeholder="For example: a birthday shirt for my son with his photo and Happy 7th Birthday Liam"></textarea>'+
+  '<label>Photos or pictures (optional, up to 3)</label><input type="file" id="reqFiles" accept="image/*" multiple><div class="req-thumbs" id="reqThumbs"></div>'+
+  '<label>Shirt</label><select name="style">'+opt(STYLES,STYLES_IN_STOCK)+'</select>'+
+  '<label>Colour</label><select name="color">'+opt(COLORS,COLORS_IN_STOCK)+'</select>'+
+  '<label>How many and what sizes?</label><input name="sizes" maxlength="200" placeholder="For example: 2 medium, 1 large">'+
+  '<label>Needed by (optional)</label><input name="needBy" type="date">'+
+  '<label>Your name</label><input name="name" required maxlength="100" autocomplete="name">'+
+  '<label>Email</label><input name="email" type="email" required maxlength="150" autocomplete="email">'+
+  '<label>Phone (optional)</label><input name="phone" type="tel" maxlength="30" autocomplete="tel">'+
+  '<input name="company" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">'+
+  '<button class="btn accent block" type="submit" id="reqBtn">Send my idea</button><p class="hint" id="reqMsg"></p>'+
+  '</form></div>');
+ $('reqFiles').onchange=function(){addReqPhotos(this.files);this.value=''};
+ $('reqThumbs').onclick=function(ev){var i=ev.target.getAttribute('data-i');if(i!==null){reqPhotos.splice(+i,1);renderReqThumbs()}};
+ $('reqForm').onsubmit=submitRequest;
  $('tplGrid').addEventListener('click',function(ev){var b=ev.target.closest('[data-t]');if(!b)return;
   showTplForm(TEMPLATES.filter(function(t){return t.id===b.getAttribute('data-t')})[0])});
  $('fontSel').innerHTML=FONTS.map(function(f){return '<option style="font-family:\''+f+'\'">'+f+'</option>'}).join('');
@@ -381,6 +408,30 @@ async function loadSharedDesign(){
   await Promise.all(Object.keys(fonts).map(function(f){return document.fonts.load('400 40px "'+f+'"')}));renderEls();update();
   $('design').scrollIntoView({behavior:'smooth'});toast('Shared design loaded. Change anything you like, then add it to your cart.');
  }catch(e){toast('Sorry, that design link did not work')}}
+
+/* ---------- DESIGN IT FOR ME (customer sends an idea, shop replies with a quote) ---------- */
+var reqPhotos=[];
+function photoToJpeg(f){return new Promise(function(res,rej){
+ if(!/^image\//.test(f.type))return rej(new Error('Please choose a picture file'));
+ if(f.size>15*1024*1024)return rej(new Error('That picture is over 15 MB'));
+ var rd=new FileReader();rd.onload=function(){var im=new Image();im.onload=function(){
+  var s=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+  var x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.85))};
+  im.onerror=function(){rej(new Error('That picture could not be opened'))};im.src=rd.result};rd.readAsDataURL(f)})}
+function renderReqThumbs(){$('reqThumbs').innerHTML=reqPhotos.map(function(p,i){
+ return '<div class="req-thumb"><img src="'+p+'" alt="Photo '+(i+1)+'"><button type="button" data-i="'+i+'" aria-label="Remove photo">&times;</button></div>'}).join('')}
+async function addReqPhotos(files){
+ for(var f of Array.from(files)){if(reqPhotos.length>=3){toast('You can add up to 3 pictures');break}
+  try{reqPhotos.push(await photoToJpeg(f))}catch(e){toast(e.message)}}
+ renderReqThumbs()}
+async function submitRequest(ev){ev.preventDefault();var fd=new FormData($('reqForm')),body={};fd.forEach(function(v,k){body[k]=String(v)});
+ body.style=find(STYLES,body.style).name;body.color=find(COLORS,body.color).name;body.photos=reqPhotos;
+ $('reqBtn').disabled=true;$('reqBtn').textContent='Sending...';$('reqMsg').textContent='';
+ try{var r=await fetch('/api/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  var d=await r.json();if(!r.ok)throw new Error(d.error||'could not send');
+  $('reqForm').innerHTML='<div class="req-done"><h3>Thanks, '+body.name.replace(/[<>&"]/g,'')+'!</h3><p>We got your idea. We will get back to you soon with a design and a price. You don\'t pay anything until you\'re happy with it.</p>'+
+   '<p class="hint">Questions? Call or text 220-204-0090.</p></div>';reqPhotos=[]}
+ catch(e){$('reqMsg').textContent='Sorry, that did not send: '+e.message+' You can also call or text 220-204-0090.';$('reqBtn').disabled=false;$('reqBtn').textContent='Send my idea'}}
 
 /* ---------- CHECKOUT -> SQUARE ---------- */
 async function submitOrder(ev){ev.preventDefault();var fd=new FormData($('coForm')),customer={};fd.forEach(function(v,k){customer[k]=String(v).trim()});
